@@ -9,6 +9,7 @@ import { shopifyWebhookRouter } from './webhooks/shopify';
 import { apiRouter } from './routes/api';
 import { shopifyAuthRouter } from './routes/shopify';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { webhookRateLimiter, apiRateLimiter } from './middleware/rateLimiter';
 import { testDbConnection } from './db/client';
 import { startWorkers } from './services/workers';
 import { logger } from './utils/logger';
@@ -23,6 +24,7 @@ app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) }
 
 // ─── Webhook Routes (raw body MUST come before express.json) ─────────────────
 app.use(
+  webhookRateLimiter,
   express.raw({ type: 'application/json' }),
   stripeWebhookRouter,
   shopifyWebhookRouter
@@ -33,7 +35,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ─── API & Auth Routes ────────────────────────────────────────────────────────
-app.use('/api', apiRouter);
+app.use('/api', apiRateLimiter, apiRouter);
 app.use(shopifyAuthRouter);
 
 // ─── 404 & Error Handling ─────────────────────────────────────────────────────

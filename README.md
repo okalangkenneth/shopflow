@@ -1,85 +1,110 @@
-# ShopFlow — E-commerce Operations Automation Backend
+# ShopFlow
 
-A production-ready Node.js + TypeScript backend that automates e-commerce operations by connecting **Stripe**, **Shopify**, and **Twilio** into a single integration hub. When a customer places an order, ShopFlow handles payment confirmation, SMS notifications, inventory sync, and fulfillment queuing — automatically and in parallel.
+**E-commerce operations automation backend** — connects Stripe, Shopify, and Twilio into a single reliable event-driven hub.
+
+When a customer pays on Shopify, ShopFlow catches the Stripe webhook, fans out three parallel background jobs (SMS confirmation, inventory sync, fulfillment trigger), retries any failures with exponential backoff, and surfaces real-time status through a REST API.
+
+---
 
 ## Architecture
 
 ```
-Customer pays on Shopify
-        ↓
-Stripe webhook → ShopFlow receives & verifies
-        ↓
-BullMQ dispatches 3 parallel background jobs:
-   ├── SMS via Twilio       → "Order confirmed ✅"
-   ├── Inventory sync       → Decrement stock in Supabase
-   └── Fulfillment queue    → Trigger Shopify fulfillment
-        ↓
-REST API reflects real-time order + job status
-        ↓
-Any failure → exponential backoff retry (up to 5x)
+┌─────────────────────────────────────────────────────────────┐
+│                      Customer Checkout                       │
+│                     (Shopify Storefront)                     │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ Payment captured
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Stripe Webhook (POST)                      │
+│              HMAC signature verified ✓                        │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 ShopFlow  (Express + BullMQ)                  │
+│                                                              │
+│  Order saved to Supabase                                     │
+│  3 jobs dispatched in parallel:                              │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────────┐  ┌───────────────┐  │
+│  │  SMS Worker  │  │ Inventory Worker  │  │ Fulfillment   │  │
+│  │  (Twilio)    │  │ (Supabase)        │  │ Worker        │  │
+│  │              │  │                   │  │ (Shopify API) │  │
+│  │ "Order #1234 │  │ Decrement stock   │  │ Create        │  │
+│  │  confirmed"  │  │ for each SKU      │  │ fulfillment   │  │
+│  └──────┬───────┘  └────────┬──────────┘  └──────┬────────┘  │
+│         └───────────────────┴─────────────────────┘          │
+│                             │                                 │
+│            Job outcomes written to job_logs table             │
+│            Failed jobs → exponential backoff (up to 5×)      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        REST API                              │
+│   GET /api/orders   GET /api/inventory   GET /api/jobs       │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Features
+
+| Feature | Details |
+|---|---|
+| **Stripe webhook processing** | HMAC signature verification; handles `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded` |
+| **Shopify OAuth** | Full install flow — `/auth/shopify` → callback → access token persisted in Supabase |
+| **Shopify webhooks** | HMAC verified handler for `orders/paid` and `orders/cancelled` |
+| **Shopify fulfillment** | Fetches fulfillment orders, creates fulfillment via REST Admin API v2024-01 |
+| **Twilio SMS** | Order confirmed, shipping update, and payment failed message builders |
+| **BullMQ job queue** | Three named queues (sms, inventory, fulfillment) with 5-attempt exponential backoff |
+| **Inventory sync** | Decrement/increment stock per SKU in Supabase on order events |
+| **Job log persistence** | Every job outcome (completed/failed) written to `job_logs` table |
+| **Rate limiting** | 100 req/15 min on webhook endpoints; 200 req/15 min on REST API |
+| **Structured logging** | Winston — JSON in production, coloured in dev |
+| **Docker Compose** | Single-command local dev with Redis |
+| **Railway deployment** | `railway.json` config + `/api/health` check endpoint |
+| **GitHub Actions CI** | Typecheck + build on every push to `master` |
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js 20 + TypeScript |
+| Runtime | Node.js 20 + TypeScript (strict) |
 | Framework | Express.js |
-| Queue | BullMQ + Redis |
+| Queue | BullMQ + Redis (IORedis) |
 | Database | Supabase (PostgreSQL) |
 | Payments | Stripe Webhooks |
 | SMS | Twilio |
 | E-commerce | Shopify REST Admin API + OAuth |
+| Rate limiting | express-rate-limit |
+| Logging | Winston |
 | Deployment | Railway |
 | CI/CD | GitHub Actions |
 
-## Features
+---
 
-- **Stripe webhook processing** with signature verification and idempotency
-- **BullMQ queue system** with exponential backoff retry logic and dead letter handling
-- **Twilio SMS** for order confirmation, shipping updates, and payment failure alerts
-- **Shopify OAuth** installation flow + order sync + inventory updates
-- **REST API** for orders, inventory, and job status — dashboard-ready
-- **Structured logging** via Winston (JSON in production, colorized in dev)
-- **Docker + Railway** deployment ready out of the box
+## Live Demo
 
-## Project Structure
+> Deployed on Railway: **https://shopflow-production.up.railway.app**
 
-```
-src/
-├── index.ts              # Express app bootstrap
-├── types/index.ts        # Shared TypeScript interfaces
-├── db/
-│   ├── client.ts         # Supabase client
-│   └── redis.ts          # Redis/BullMQ connection
-├── queues/
-│   └── index.ts          # Queue definitions + job dispatcher
-├── webhooks/
-│   ├── stripe.ts         # Stripe webhook handler
-│   └── shopify.ts        # Shopify webhook handler
-├── routes/
-│   └── api.ts            # REST API (health, orders, inventory, jobs)
-├── services/
-│   ├── sms.ts            # Twilio SMS service
-│   ├── shopify.ts        # Shopify API client
-│   └── workers.ts        # BullMQ worker processors
-├── middleware/
-│   └── errorHandler.ts   # Global error + 404 handlers
-└── utils/
-    └── logger.ts         # Winston logger
-```
+---
 
-## Getting Started
+## Local Development
 
 ### Prerequisites
+
 - Node.js 20+
 - Docker Desktop (for Redis)
+- Stripe account (test mode) + [Stripe CLI](https://stripe.com/docs/stripe-cli)
 - Supabase project
-- Stripe account (test mode)
-- Twilio account
-- Shopify Partner account (for OAuth app)
+- Twilio account (trial is fine)
+- Shopify Partner account + development store
 
-### 1. Clone & install
+### 1. Clone and install
 
 ```bash
 git clone https://github.com/okalangkenneth/shopflow.git
@@ -87,71 +112,165 @@ cd shopflow
 npm install
 ```
 
-### 2. Configure environment
+### 2. Configure environment variables
 
 ```bash
-cp .env.example .env
-# Fill in your API keys
+cp .env.example .env.local
 ```
 
-### 3. Set up database
+Fill in every value:
 
-Run `supabase/schema.sql` in your Supabase SQL editor.
+| Variable | Where to find it |
+|---|---|
+| `SUPABASE_URL` | Supabase dashboard → Project Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Same page — use the **service_role** key |
+| `STRIPE_SECRET_KEY` | Stripe dashboard → Developers → API keys |
+| `STRIPE_WEBHOOK_SECRET` | Generated by `stripe listen` (step 5 below) |
+| `TWILIO_ACCOUNT_SID` | Twilio Console → Account Info |
+| `TWILIO_AUTH_TOKEN` | Same page |
+| `TWILIO_PHONE_NUMBER` | Twilio Console → Phone Numbers |
+| `SHOPIFY_API_KEY` | Shopify Partners → Apps → your app → API credentials |
+| `SHOPIFY_API_SECRET` | Same page |
+| `APP_URL` | `http://localhost:3000` for local dev |
+| `REDIS_URL` | `redis://localhost:6379` (Docker provides this) |
 
-### 4. Start development
+### 3. Set up the database
+
+In your **Supabase SQL editor**, run the entire contents of `supabase/schema.sql`.
+
+This creates `orders`, `inventory`, `job_logs`, and `shopify_sessions` tables.
+
+### 4. Start the server
 
 ```bash
-# Start Redis + API together
 docker-compose up
-
-# Or API only (requires Redis running separately)
-npm run dev
 ```
 
-### 5. Test Stripe webhooks locally
+The API is available at `http://localhost:3000`.
+
+Verify it's running:
 
 ```bash
-# Install Stripe CLI, then:
-stripe listen --forward-to localhost:3000/webhooks/stripe
+curl http://localhost:3000/api/health
 ```
 
-## API Endpoints
+Expected:
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-03-13T12:00:00.000Z",
+  "version": "1.0.0",
+  "queues": { "sms": "ready", "inventory": "ready", "fulfillment": "ready" }
+}
+```
+
+---
+
+## Testing Webhooks
+
+### Stripe
+
+```bash
+# Terminal 1 — forward Stripe events to your local server
+stripe listen --forward-to localhost:3000/webhooks/stripe
+# Copy the printed webhook secret into STRIPE_WEBHOOK_SECRET in .env.local
+
+# Terminal 2 — trigger test events
+stripe trigger payment_intent.succeeded
+stripe trigger payment_intent.payment_failed
+stripe trigger charge.refunded
+```
+
+Watch the logs — you should see the webhook received, signature verified, order saved, and three jobs queued.
+
+### Shopify
+
+Use [ngrok](https://ngrok.com) to expose your local server, then configure the tunnel URL as `APP_URL` and register it in your Shopify Partner app:
+
+```bash
+ngrok http 3000
+# Copy the https URL, set APP_URL=https://xxxx.ngrok.io in .env.local, restart
+```
+
+---
+
+## API Reference
+
+Base URL: `http://localhost:3000` (local) or your Railway URL in production.
+
+Rate limit: **200 requests per 15 minutes** per IP.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/health` | Server + queue health check |
-| GET | `/api/orders` | List orders (filterable by status) |
-| GET | `/api/orders/:id` | Single order details |
-| GET | `/api/inventory` | Current inventory levels |
-| GET | `/api/jobs` | Background job logs |
-| POST | `/webhooks/stripe` | Stripe event receiver |
-| GET | `/auth/shopify` | Shopify OAuth install |
-| GET | `/auth/shopify/callback` | Shopify OAuth callback |
+| `GET` | `/api/health` | Service health + queue status |
+| `GET` | `/api/orders` | List orders — supports `?status=`, `?limit=`, `?offset=` |
+| `GET` | `/api/orders/:id` | Get single order by UUID |
+| `GET` | `/api/inventory` | List all inventory items |
+| `GET` | `/api/jobs` | Job logs — supports `?order_id=`, `?status=` |
+| `POST` | `/webhooks/stripe` | Stripe event receiver (rate limit: 100 req/15 min) |
+| `POST` | `/webhooks/shopify` | Shopify event receiver (rate limit: 100 req/15 min) |
+| `GET` | `/auth/shopify` | Shopify OAuth install redirect |
+| `GET` | `/auth/shopify/callback` | Shopify OAuth callback |
 
-## Deployment
+Import `postman/shopflow.postman_collection.json` into Postman for ready-to-run requests with example responses.
 
-This project is configured for one-click Railway deployment:
+---
 
-```bash
-# Install Railway CLI
-npm install -g @railway/cli
+## Project Structure
 
-# Deploy
-railway login
-railway init
-railway up
+```
+src/
+├── index.ts                 # Express bootstrap + middleware stack
+├── types/index.ts           # Shared TypeScript interfaces
+├── db/
+│   ├── client.ts            # Supabase client
+│   └── redis.ts             # Redis / BullMQ connection
+├── queues/
+│   └── index.ts             # Queue definitions + job dispatcher
+├── webhooks/
+│   ├── stripe.ts            # Stripe webhook handler
+│   └── shopify.ts           # Shopify webhook handler
+├── routes/
+│   ├── api.ts               # REST API endpoints
+│   └── shopify.ts           # Shopify OAuth install flow
+├── services/
+│   ├── workers.ts           # BullMQ worker processors
+│   ├── sms.ts               # Twilio SMS service
+│   └── shopify.ts           # Shopify REST Admin API client
+├── middleware/
+│   ├── errorHandler.ts      # Global error + 404 handlers
+│   └── rateLimiter.ts       # Webhook + API rate limiters
+└── utils/
+    ├── logger.ts             # Winston logger
+    └── errorLogger.ts        # Structured external-API error helper
+supabase/
+└── schema.sql               # Full database schema
+postman/
+└── shopflow.postman_collection.json
 ```
 
-Add Redis as a Railway plugin — `REDIS_URL` is injected automatically.
+---
+
+## Deployment (Railway)
+
+1. Create a new Railway project and connect this GitHub repo.
+2. Add a **Redis** service from the Railway dashboard — `REDIS_URL` is injected automatically.
+3. Add all other environment variables under the Railway **Variables** tab.
+4. Railway runs `npm run build && npm start` on every deploy (configured in `railway.json`).
+
+---
 
 ## Build Phases
 
-- [x] Phase 1 — Foundation (Express + TypeScript + Supabase + Redis + Queues)
+- [x] Phase 1 — Foundation (Express + TypeScript + Supabase + Redis + BullMQ)
 - [x] Phase 2 — Stripe webhook processing
-- [ ] Phase 3 — BullMQ worker processors
-- [ ] Phase 4 — Twilio SMS notifications
-- [ ] Phase 5 — Shopify OAuth + sync
-- [ ] Phase 6 — Rate limiting, Postman collection, architecture diagram
+- [x] Phase 3 — BullMQ worker processors
+- [x] Phase 4 — Twilio SMS notifications
+- [x] Phase 5 — Shopify OAuth + webhooks + fulfillment sync
+- [x] Phase 6 — Rate limiting, structured error logging, README, Postman collection
+
+---
 
 ## License
 

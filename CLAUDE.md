@@ -38,14 +38,22 @@ This project uses a unified memory approach combining:
 - `supabase/schema.sql` — Full DB schema (orders, inventory, job_logs)
 - `Dockerfile` + `docker-compose.yml` + `railway.json` + GitHub Actions CI
 - `src/services/workers.ts` — BullMQ worker processors (smsWorker, inventoryWorker, fulfillmentWorker) wired into bootstrap
+- `src/services/sms.ts` — Twilio SMS service (sendSms, typed message builders); wired into smsWorker
+- `src/services/shopify.ts` — Shopify REST Admin API client (getOrder, updateInventory, triggerFulfillment)
+- `src/webhooks/shopify.ts` — Shopify webhook handler (HMAC verification, orders/paid, orders/cancelled)
+- `src/routes/shopify.ts` — Shopify OAuth install flow (/auth/shopify, /auth/shopify/callback)
+- `supabase/schema.sql` — shopify_sessions table added
+
+- `src/middleware/rateLimiter.ts` — express-rate-limit (100 req/15min webhooks, 200 req/15min API, JSON 429 responses)
+- `src/utils/errorLogger.ts` — logApiError() helper; replaced raw logger.error calls in sms.ts and shopify.ts
+- `README.md` — portfolio-quality: ASCII architecture diagram, live demo, copy-paste local setup, webhook testing guide, full feature table
+- `postman/shopflow.postman_collection.json` — all 6 endpoints with example responses
 
 ### 🔨 IN PROGRESS
-<!-- Current work -->
+<!-- none -->
 
 ### ❌ REMAINING
-- Phase 4: Twilio SMS service (`src/services/sms.ts`)
-- Phase 5: Shopify OAuth + sync (`src/webhooks/shopify.ts`, `src/services/shopify.ts`)
-- Phase 6: Rate limiting, Postman collection, architecture diagram, Loom walkthrough
+<!-- All phases complete -->
 
 ---
 

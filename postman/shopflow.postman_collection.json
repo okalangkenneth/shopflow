@@ -1,0 +1,271 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "ShopFlow API",
+    "description": "ShopFlow e-commerce operations automation backend — REST API endpoints for orders, inventory, and job logs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "Change to your Railway URL for production testing"
+    },
+    {
+      "key": "orderId",
+      "value": "550e8400-e29b-41d4-a716-446655440000",
+      "type": "string",
+      "description": "Replace with a real order UUID from GET /api/orders"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Returns service status and BullMQ queue health for all three queues (sms, inventory, fulfillment)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/health" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"ok\",\n  \"timestamp\": \"2026-03-13T12:00:00.000Z\",\n  \"version\": \"1.0.0\",\n  \"queues\": {\n    \"sms\": \"ready\",\n    \"inventory\": \"ready\",\n    \"fulfillment\": \"ready\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Number of orders to return (default: 20)"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset"
+                }
+              ]
+            },
+            "description": "Returns a paginated list of all orders, newest first."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/orders" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"orders\": [\n    {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"stripe_payment_intent_id\": \"pi_3OxAbcDef123456\",\n      \"shopify_order_id\": \"5678901234\",\n      \"customer_email\": \"jane@example.com\",\n      \"customer_phone\": \"+12025551234\",\n      \"customer_name\": \"Jane Smith\",\n      \"amount\": 9999,\n      \"currency\": \"usd\",\n      \"status\": \"payment_confirmed\",\n      \"line_items\": [\n        { \"sku\": \"WIDGET-001\", \"quantity\": 2, \"price\": 4999 }\n      ],\n      \"shop\": \"my-store.myshopify.com\",\n      \"created_at\": \"2026-03-13T10:00:00.000Z\",\n      \"updated_at\": \"2026-03-13T10:00:05.000Z\"\n    }\n  ],\n  \"total\": 1,\n  \"limit\": 20,\n  \"offset\": 0\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Orders — Filter by Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?status=payment_confirmed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "payment_confirmed",
+                  "description": "Filter by order status. Valid values: payment_confirmed, processing, fulfilled, payment_failed, refunded"
+                }
+              ]
+            },
+            "description": "Returns only orders with the given status. Valid statuses: payment_confirmed, processing, fulfilled, payment_failed, refunded."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/orders?status=payment_confirmed" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"orders\": [\n    {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"status\": \"payment_confirmed\",\n      \"customer_name\": \"Jane Smith\",\n      \"amount\": 9999,\n      \"currency\": \"usd\",\n      \"created_at\": \"2026-03-13T10:00:00.000Z\"\n    }\n  ],\n  \"total\": 1,\n  \"limit\": 20,\n  \"offset\": 0\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            },
+            "description": "Returns a single order by its UUID. Returns 404 if not found."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/orders/{{orderId}}" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"stripe_payment_intent_id\": \"pi_3OxAbcDef123456\",\n  \"shopify_order_id\": \"5678901234\",\n  \"customer_email\": \"jane@example.com\",\n  \"customer_phone\": \"+12025551234\",\n  \"customer_name\": \"Jane Smith\",\n  \"amount\": 9999,\n  \"currency\": \"usd\",\n  \"status\": \"payment_confirmed\",\n  \"line_items\": [\n    { \"sku\": \"WIDGET-001\", \"quantity\": 2, \"price\": 4999 }\n  ],\n  \"shop\": \"my-store.myshopify.com\",\n  \"created_at\": \"2026-03-13T10:00:00.000Z\",\n  \"updated_at\": \"2026-03-13T10:00:05.000Z\"\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/orders/does-not-exist" }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Order not found\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "List Inventory",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "inventory"]
+            },
+            "description": "Returns all inventory items ordered alphabetically by title."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/inventory" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"items\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"sku\": \"GADGET-PRO-001\",\n      \"title\": \"Gadget Pro\",\n      \"quantity\": 142,\n      \"created_at\": \"2026-01-01T00:00:00.000Z\",\n      \"updated_at\": \"2026-03-13T10:00:05.000Z\"\n    },\n    {\n      \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"sku\": \"WIDGET-001\",\n      \"title\": \"Widget Classic\",\n      \"quantity\": 87,\n      \"created_at\": \"2026-01-01T00:00:00.000Z\",\n      \"updated_at\": \"2026-03-13T09:55:00.000Z\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Job Logs",
+      "item": [
+        {
+          "name": "List Job Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs"]
+            },
+            "description": "Returns the 100 most recent job log entries across all workers (sms, inventory, fulfillment), newest first."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/jobs" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"jobs\": [\n    {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"job_id\": \"1\",\n      \"job_type\": \"send_sms\",\n      \"order_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"status\": \"completed\",\n      \"attempts\": 1,\n      \"error\": null,\n      \"created_at\": \"2026-03-13T10:00:01.000Z\",\n      \"updated_at\": \"2026-03-13T10:00:03.000Z\"\n    },\n    {\n      \"id\": \"d4e5f6a7-b8c9-0123-defa-234567890123\",\n      \"job_id\": \"2\",\n      \"job_type\": \"sync_inventory\",\n      \"order_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"status\": \"completed\",\n      \"attempts\": 1,\n      \"error\": null,\n      \"created_at\": \"2026-03-13T10:00:01.000Z\",\n      \"updated_at\": \"2026-03-13T10:00:04.000Z\"\n    },\n    {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"job_id\": \"3\",\n      \"job_type\": \"process_fulfillment\",\n      \"order_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"status\": \"failed\",\n      \"attempts\": 3,\n      \"error\": \"Shopify API returned 429 Too Many Requests\",\n      \"created_at\": \"2026-03-13T10:00:01.000Z\",\n      \"updated_at\": \"2026-03-13T10:00:30.000Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Job Logs — Filter by Order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs?order_id={{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs"],
+              "query": [
+                {
+                  "key": "order_id",
+                  "value": "{{orderId}}",
+                  "description": "Filter logs to a specific order UUID"
+                }
+              ]
+            },
+            "description": "Returns all job logs for a specific order. Useful for debugging why an order's jobs failed."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/jobs?order_id={{orderId}}" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"jobs\": [\n    {\n      \"job_id\": \"1\",\n      \"job_type\": \"send_sms\",\n      \"order_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"status\": \"completed\",\n      \"attempts\": 1,\n      \"error\": null\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

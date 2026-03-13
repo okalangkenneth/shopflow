@@ -1,5 +1,6 @@
 import twilio from 'twilio';
 import { logger } from '../utils/logger';
+import { logApiError } from '../utils/errorLogger';
 
 // ─── Twilio Client Init ───────────────────────────────────────────────────────
 
@@ -25,8 +26,7 @@ export async function sendSms(to: string, body: string): Promise<string | null> 
     logger.info('[sms] Message sent', { to, sid: message.sid, status: message.status });
     return message.sid;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error('[sms] Failed to send message', { to, error: message });
+    logApiError('twilio', 'sendSms', err, { to });
     return null;
   }
 }

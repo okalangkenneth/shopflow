@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger';
+import { logApiError } from '../utils/errorLogger';
 
 const API_VERSION = '2024-01';
 
@@ -35,8 +36,7 @@ export async function getOrder(
     logger.info('[shopify] getOrder success', { shop, shopifyOrderId });
     return data.order;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error('[shopify] getOrder failed', { shop, shopifyOrderId, error: message });
+    logApiError('shopify', 'getOrder', err, { shop, shopifyOrderId });
     return null;
   }
 }
@@ -76,13 +76,7 @@ export async function updateInventory(
     });
     return data.inventory_level;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error('[shopify] updateInventory failed', {
-      shop,
-      inventoryItemId,
-      locationId,
-      error: message,
-    });
+    logApiError('shopify', 'updateInventory', err, { shop, inventoryItemId, locationId });
     return null;
   }
 }
@@ -145,8 +139,7 @@ export async function triggerFulfillment(
     });
     return fulfillmentId;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error('[shopify] triggerFulfillment failed', { shop, shopifyOrderId, error: message });
+    logApiError('shopify', 'triggerFulfillment', err, { shop, shopifyOrderId });
     return null;
   }
 }
