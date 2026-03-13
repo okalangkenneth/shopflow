@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import { supabase } from '../db/client';
-import { dispatchOrderJobs } from '../queues';
+import { dispatchOrderJobs, smsQueue } from '../queues';
 import { logger } from '../utils/logger';
 import type { Order, LineItem } from '../types';
 
@@ -126,7 +126,6 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent): Promise
     .eq('stripe_payment_intent_id', paymentIntent.id);
 
   if (metadata?.customer_phone) {
-    const { smsQueue } = await import('../queues');
     await smsQueue.add('send_sms', {
       to: metadata.customer_phone,
       customerName: metadata.customer_name || 'Customer',

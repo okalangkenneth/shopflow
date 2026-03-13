@@ -2,6 +2,12 @@ import { Worker, Job } from 'bullmq';
 import { redisConnection } from '../db/redis';
 import { supabase } from '../db/client';
 import { logger } from '../utils/logger';
+import {
+  sendSms,
+  buildOrderConfirmedMessage,
+  buildShippingUpdateMessage,
+  buildPaymentFailedMessage,
+} from './sms';
 import type { SmsJobData, InventorySyncJobData, FulfillmentJobData, JobType } from '../types';
 
 // ─── Job Log Helper ───────────────────────────────────────────────────────────
@@ -34,18 +40,19 @@ async function writeJobLog(
 
 // ─── SMS Worker ───────────────────────────────────────────────────────────────
 
-function buildSmsMessage(
+function resolveMessage(
   customerName: string,
   messageType: SmsJobData['messageType'],
+  orderId: string,
   trackingUrl?: string
 ): string {
   switch (messageType) {
     case 'order_confirmed':
-      return `Hi ${customerName}, your order has been confirmed! We'll notify you when it ships.`;
+      return buildOrderConfirmedMessage(customerName, orderId);
     case 'shipping_update':
-      return `Hi ${customerName}, your order has shipped! Track it here: ${trackingUrl ?? 'link unavailable'}`;
+      return buildShippingUpdateMessage(customerName, trackingUrl ?? 'link unavailable');
     case 'payment_failed':
-      return `Hi ${customerName}, there was an issue with your payment. Please contact support.`;
+      return buildPaymentFailedMessage(customerName);
   }
 }
 
@@ -61,11 +68,14 @@ export const smsWorker = new Worker<SmsJobData>(
       messageType,
     });
 
-    // Stub: Twilio call will be wired in Phase 4 via src/services/sms.ts
-    logger.info('[smsWorker] [STUB] Twilio sendMessage', {
-      to,
-      body: buildSmsMessage(customerName, messageType, trackingUrl),
-    });
+    const body = resolveMessage(customerName, messageType, orderId, trackingUrl);
+    const sid = await sendSms(to, body);
+
+    if (sid) {
+      logger.info('[smsWorker] SMS sent', { jobId: job.id, orderId, sid });
+    } else {
+      logger.warn('[smsWorker] SMS send returned null — Twilio error logged above', { jobId: job.id, orderId });
+    }
 
     await writeJobLog(job.id!, 'send_sms', orderId, 'completed', job.attemptsMade + 1);
     logger.info('[smsWorker] SMS job completed', { jobId: job.id, orderId });
