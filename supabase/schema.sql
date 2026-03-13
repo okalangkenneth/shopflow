@@ -80,6 +80,22 @@ create trigger job_logs_updated_at
   before update on job_logs
   for each row execute function update_updated_at();
 
+-- ─── Shopify Sessions ────────────────────────────────────────
+create table if not exists shopify_sessions (
+  id uuid primary key default uuid_generate_v4(),
+  shop text unique not null,
+  access_token text not null,
+  scope text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists shopify_sessions_shop_idx on shopify_sessions(shop);
+
+create trigger shopify_sessions_updated_at
+  before update on shopify_sessions
+  for each row execute function update_updated_at();
+
 -- ─── Seed sample inventory ────────────────────────────────────
 insert into inventory (shopify_variant_id, sku, title, quantity) values
   ('var_001', 'TSHIRT-BLK-M', 'Black T-Shirt (Medium)', 50),

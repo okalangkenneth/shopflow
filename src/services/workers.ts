@@ -8,6 +8,7 @@ import {
   buildShippingUpdateMessage,
   buildPaymentFailedMessage,
 } from './sms';
+import { triggerFulfillment } from './shopify';
 import type { SmsJobData, InventorySyncJobData, FulfillmentJobData, JobType } from '../types';
 
 // ─── Job Log Helper ───────────────────────────────────────────────────────────
@@ -173,15 +174,17 @@ inventoryWorker.on('failed', async (job, err) => {
 export const fulfillmentWorker = new Worker<FulfillmentJobData>(
   'fulfillment',
   async (job: Job<FulfillmentJobData>) => {
-    const { orderId, shopifyOrderId, lineItems } = job.data;
+    const { orderId, shopifyOrderId, lineItems, shop } = job.data;
 
     logger.info('[fulfillmentWorker] Processing fulfillment job', {
       jobId: job.id,
       orderId,
       shopifyOrderId,
       itemCount: lineItems.length,
+      shop,
     });
 
+    // Mark order as processing in Supabase
     const { error } = await supabase
       .from('orders')
       .update({ status: 'processing', updated_at: new Date().toISOString() })
@@ -191,13 +194,41 @@ export const fulfillmentWorker = new Worker<FulfillmentJobData>(
       throw new Error(`Failed to update order status to processing: ${error.message}`);
     }
 
-    // Note: Shopify fulfillment API call will be triggered in Phase 5 (src/services/shopify.ts)
-    logger.info('[fulfillmentWorker] Fulfillment intent logged', {
-      orderId,
-      shopifyOrderId,
-      status: 'processing',
-      note: 'Shopify fulfillment API will be triggered in Phase 5',
-    });
+    // Trigger fulfillment in Shopify if we have a shop context
+    if (shop) {
+      const { data: session } = await supabase
+        .from('shopify_sessions')
+        .select('access_token')
+        .eq('shop', shop)
+        .single();
+
+      if (session?.access_token) {
+        const fulfillmentId = await triggerFulfillment(
+          shop,
+          session.access_token as string,
+          shopifyOrderId
+        );
+        if (fulfillmentId) {
+          logger.info('[fulfillmentWorker] Shopify fulfillment created', {
+            orderId,
+            shopifyOrderId,
+            fulfillmentId,
+          });
+        } else {
+          logger.warn('[fulfillmentWorker] Shopify fulfillment returned null', {
+            orderId,
+            shopifyOrderId,
+          });
+        }
+      } else {
+        logger.warn('[fulfillmentWorker] No session found for shop', { shop, orderId });
+      }
+    } else {
+      logger.info('[fulfillmentWorker] No shop context — skipping Shopify fulfillment API', {
+        orderId,
+        shopifyOrderId,
+      });
+    }
 
     await writeJobLog(job.id!, 'process_fulfillment', orderId, 'completed', job.attemptsMade + 1);
     logger.info('[fulfillmentWorker] Fulfillment job completed', { jobId: job.id, orderId });

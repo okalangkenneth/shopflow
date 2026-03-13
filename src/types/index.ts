@@ -78,4 +78,14 @@ export interface FulfillmentJobData {
   orderId: string;
   shopifyOrderId: string;
   lineItems: LineItem[];
+  shop?: string; // Present when triggered from a Shopify webhook
+}
+
+export interface ShopifySession {
+  id: string;
+  shop: string;
+  access_token: string;
+  scope: string;
+  created_at: string;
+  updated_at: string;
 }

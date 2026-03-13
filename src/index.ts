@@ -5,7 +5,9 @@ import cors from 'cors';
 import morgan from 'morgan';
 
 import { stripeWebhookRouter } from './webhooks/stripe';
+import { shopifyWebhookRouter } from './webhooks/shopify';
 import { apiRouter } from './routes/api';
+import { shopifyAuthRouter } from './routes/shopify';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { testDbConnection } from './db/client';
 import { startWorkers } from './services/workers';
@@ -19,18 +21,20 @@ app.use(helmet());
 app.use(cors());
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
-// ─── Stripe Webhooks (raw body MUST come before express.json) ────────────────
+// ─── Webhook Routes (raw body MUST come before express.json) ─────────────────
 app.use(
   express.raw({ type: 'application/json' }),
-  stripeWebhookRouter
+  stripeWebhookRouter,
+  shopifyWebhookRouter
 );
 
 // ─── JSON Parsing for all other routes ───────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ─── API Routes ───────────────────────────────────────────────────────────────
+// ─── API & Auth Routes ────────────────────────────────────────────────────────
 app.use('/api', apiRouter);
+app.use(shopifyAuthRouter);
 
 // ─── 404 & Error Handling ─────────────────────────────────────────────────────
 app.use(notFoundHandler);
