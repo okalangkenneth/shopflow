@@ -69,6 +69,19 @@ When a customer pays on Shopify, ShopFlow catches the Stripe webhook, fans out t
 
 ---
 
+## Live Demo
+
+**Base URL:** `https://shopflow-production-08a9.up.railway.app`
+
+| Endpoint | Link |
+|---|---|
+| Health + queue status | https://shopflow-production-08a9.up.railway.app/api/health |
+| Orders | https://shopflow-production-08a9.up.railway.app/api/orders |
+| Inventory | https://shopflow-production-08a9.up.railway.app/api/inventory |
+| Job logs | https://shopflow-production-08a9.up.railway.app/api/jobs |
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |

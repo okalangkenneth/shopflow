@@ -137,6 +137,7 @@ src/
 ## GitHub Repository
 
 **Repo**: https://github.com/okalangkenneth/shopflow
+**Live URL**: https://shopflow-production-08a9.up.railway.app
 
 ### First-time setup (if repo doesn't exist yet)
 ```bash
