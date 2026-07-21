@@ -1,6 +1,6 @@
 # ShopFlow
 
-**E-commerce operations automation backend** — connects Stripe, Shopify, and Twilio into a single reliable event-driven hub.
+**E-commerce operations automation backend**-connects Stripe, Shopify, and Twilio into a single reliable event-driven hub.
 
 When a customer pays on Shopify, ShopFlow catches the Stripe webhook, fans out three parallel background jobs (SMS confirmation, inventory sync, fulfillment trigger), retries any failures with exponential backoff, and surfaces real-time status through a REST API.
 
